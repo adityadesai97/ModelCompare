@@ -58,10 +58,10 @@ class ModelCompare:
 
 		opt = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
 		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-		metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
+		metrics = ['accuracy', 'f1']
 
-		model1.compile(optimizer=opt, loss=loss_fn, metrics=['accuracy'])
-		model2.compile(optimizer=opt, loss=loss_fn, metrics=['accuracy'])
+		model1.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+		model2.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
 
 		if ft:
 			tf_train_data_1 = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
@@ -78,10 +78,10 @@ class ModelCompare:
 															self.model1.name, text_column=text_column, label_column=label_column)
 		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
 															self.model2.name, text_column=text_column, label_column=label_column)
-		self.results[cls_type][self.model1.name]['accuracy'] = model1.evaluate(tf_val_data_1, verbose=0)[1]
-		self.results[cls_type][self.model2.name]['accuracy'] = model2.evaluate(tf_val_data_2, verbose=0)[1]
-		# print(self.model1.name + ' accuracy = ' + str(model1.evaluate(tf_val_data_1, verbose=0)[1]))
-		# print(self.model2.name + ' accuracy = ' + str(model2.evaluate(tf_val_data_2, verbose=0)[1]))
+		model1_eval = {k:v for k, v in zip(model1.metric_names, model1.evaluate(tf_val_data_1, verbose=0))}
+		model2_eval = {k:v for k, v in zip(model2.metric_names, model2.evaluate(tf_val_data_2, verbose=0))}
+		self.results[cls_type][self.model1.name] = model1_eval
+		self.results[cls_type][self.model2.name] = model2_eval
 
 
 	def qna(self):
