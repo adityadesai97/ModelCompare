@@ -18,7 +18,7 @@ class ModelCompare:
 
 
 	def run_tasks(self):
-		TASK_MAP = {'sentiment': self.sentiment, 'multilabel': self.multilabel_classification, 'multiclass': self.multiclass_classification, 'qna': self.qna}
+		TASK_MAP = {'sentiment': self.sentiment, 'multiclass': self.multiclass_classification, 'qna': self.qna}
 		for task in config['tasks']:
 			if config['tasks'][task]['do_task']:
 				TASK_MAP[task]()
@@ -74,13 +74,6 @@ class ModelCompare:
 		dataset = config['tasks']['multilabel']['dataset']
 		epochs = config['tasks']['multilabel']['epochs']
 		self.classification('multilabel', ft, dataset, epochs, 'sentence', 'relation')
-
-
-	def multiclass_classification(self):
-		ft = config['tasks']['multiclass']['ft']
-		dataset = config['tasks']['multiclass']['dataset']
-		epochs = config['tasks']['multiclass']['epochs']
-		self.classification('multiclass', ft, dataset, epochs, 'text', 'labels')
 
 
 	def qna(self):
