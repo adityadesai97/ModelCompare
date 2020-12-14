@@ -18,7 +18,7 @@ config = {
         	'do_task': False,
             'ft': True,
             'epochs': 1,
-            'dataset': ''
+            'dataset': ('go_emotions', 'simplified')
         },
         'qna': {
         	'do_task': False,

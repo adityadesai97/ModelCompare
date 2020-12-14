@@ -24,9 +24,13 @@ class ModelCompare:
 				TASK_MAP[task]()
 
 	def classification(self, cls_type, ft, dataset, epochs, text_column, label_column):
+		subset = None
+		if isinstance(dataset, tuple):
+			dataset = dataset[0]
+			subset = dataset[1]
 		if ft:
-			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
-		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
+			train_dataset = Dataset(dataset, name=subset, split=Dataset.TRAIN_STR)
+		val_dataset = Dataset(dataset, name=subset, split=Dataset.VALIDATION_STR)
 		
 		model1 = self.model1.load_model(self.model1.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
 		model2 = self.model2.load_model(self.model2.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
@@ -71,14 +75,14 @@ class ModelCompare:
 		self.classification('multilabel', ft, dataset, epochs, 'sentence', 'relation')
 
 
-	def multiclass_classification(self, dataset='', ft=False):
+	def multiclass_classification(self):
 		ft = config['tasks']['multiclass']['ft']
 		dataset = config['tasks']['multiclass']['dataset']
 		epochs = config['tasks']['multiclass']['epochs']
-		self.classification('multiclass', ft, dataset, epochs, 'text', 'label')
+		self.classification('multiclass', ft, dataset, epochs, 'text', 'labels')
 
 
-	def qna(self, dataset='squad', ft=False):
+	def qna(self):
 		ft = config['tasks']['qna']['ft']
 		dataset = config['tasks']['qna']['dataset']
 		epochs = config['tasks']['qna']['epochs']
