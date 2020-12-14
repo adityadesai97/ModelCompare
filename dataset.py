@@ -51,9 +51,9 @@ class Dataset:
 			return load_dataset(self.type, data_files=filename)
 
 
-	def classification_tokenize(self, tokenizer, batch_size, model_name, text_label='text', label_column='label'):
+	def classification_tokenize(self, tokenizer, batch_size, model_name, text_column='text', label_column='label'):
 		def encode(example):
-			return tokenizer(example[text_label], padding='max_length', truncation=True)
+			return tokenizer(example[text_column], padding='max_length', truncation=True)
 		dataset = self.data.map(encode)
 		dataset.set_format(type='tensorflow', columns=Model.MODEL_INPUTS[model_name]+[label_column])
 		features = {x: dataset[x].to_tensor(default_value=0, shape=(None, Model.MAX_SEQ_LEN)) for x in Model.MODEL_INPUTS[model_name]}

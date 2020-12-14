@@ -40,19 +40,19 @@ class ModelCompare:
 
 		if ft:
 			tf_train_data_1 = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-																	self.model1.name, text_label=text_label, label_column=label_column)
+																	self.model1.name, text_column=text_column, label_column=label_column)
 			model1.fit(tf_train_data_1, epochs=epochs)
 
 			del tf_train_data_1
 
 			tf_train_data_2 = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-																	self.model2.name, text_label=text_label, label_column=label_column)
+																	self.model2.name, text_column=text_column, label_column=label_column)
 			model2.fit(tf_train_data_2, epochs=epochs)
 
 		tf_val_data_1 = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-															self.model1.name, text_label=text_label, label_column=label_column)
+															self.model1.name, text_column=text_column, label_column=label_column)
 		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-															self.model2.name, text_label=text_label, label_column=label_column)
+															self.model2.name, text_column=text_column, label_column=label_column)
 		print(self.model1.name + ' accuracy = ' + str(model1.evaluate(tf_val_data_1, verbose=0)[1]))
 		print(self.model2.name + ' accuracy = ' + str(model2.evaluate(tf_val_data_2, verbose=0)[1]))
 
