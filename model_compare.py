@@ -1,23 +1,13 @@
-from absl import app
-from absl import flags
 import warnings
 
 from dataset import Dataset
 from model import Model
+from config import config
 
 import tensorflow as tf
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('model1', 'bert', 'First model')
-flags.DEFINE_string('model2', 'roberta', 'Second model')
-flags.DEFINE_boolean('sentiment', False, 'Get sentiment analysis results')
-flags.DEFINE_boolean('multilabel', False, 'Get multilabel classification results')
-flags.DEFINE_boolean('qna', False, 'Get question-answering results')
-flags.DEFINE_integer('epochs', 5, 'Number of epochs')
-
 class ModelCompare:
-	TRAIN_STR = 'train'
-	VALIDATION_STR = 'validation'
+	TASK_MAP = {'sentiment': sentiment, 'multilabel': multilabel_classification, 'multiclass': multiclass_classification, 'qna': qna}
 
 
 	def __init__(self, model1, model2):
@@ -30,18 +20,14 @@ class ModelCompare:
 
 
 	def run_tasks(self):
-		if FLAGS.sentiment:
-			self.sentiment(ft=True)
-		if FLAGS.multilabel:
-			self.multilabel_classification(ft=True)
-		if FLAGS.qna:
-			self.qna(ft=True)
+		for task in config['tasks']:
+			TASK_MAP[task](ft=config[task]['ft'], dataset=config[task]['dataset'])
 
 
 	def sentiment(self, dataset='rotten_tomatoes', ft=False):
 		if ft:
-			train_dataset = Dataset(dataset, split=self.TRAIN_STR)
-		val_dataset = Dataset(dataset, split=self.VALIDATION_STR)
+			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
+		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
 		
 		model1 = self.model1.load_model(self.model1.classification_model, 'sentiment', train_dataset.get_num_classes())
 		model2 = self.model2.load_model(self.model2.classification_model, 'sentiment', train_dataset.get_num_classes())
@@ -122,9 +108,7 @@ class ModelCompare:
 	# 	val_data = Dataset(dataset, split=self.VALIDATION_STR)
 	# 	print('c1', dataset, ft)
 
-def main(argv):
-	f = ModelCompare(FLAGS.model1, FLAGS.model2)
-	f.run_tasks()
 
 if __name__ == '__main__':
-	app.run(main)
+	f = ModelCompare(config.model1, config.model2)
+	f.run_tasks()

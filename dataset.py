@@ -14,6 +14,10 @@ class Dataset:
 	HF_DATASETS = list_datasets()
 	DATA_PATH = '../data/'
 
+	TRAIN_STR = 'train'
+	TEST_STR = 'test'
+	VALIDATION_STR = 'validation'
+
 	def __init__(self, name, split):
 		self.name = name
 		self.split = split
@@ -31,13 +35,13 @@ class Dataset:
 
 	def get_dataset(self):
 		if self.type == 'hf':
-			if self.split == 'validation':
+			if self.split == self.VALIDATION_STR:
 				try:
-					return load_dataset(self.name, split='validation')
+					return load_dataset(self.name, split=self.VALIDATION_STR)
 				except ValueError:
 					pass
 				try:
-					return load_dataset(self.name, split='test')
+					return load_dataset(self.name, split=self.TEST_STR)
 				except ValueError:
 					raise RuntimeError('Invalid dataset. No validation set found.')
 			else:
