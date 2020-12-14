@@ -20,16 +20,16 @@ class ModelCompare:
 	def run_tasks(self):
 		TASK_MAP = {'sentiment': self.sentiment, 'multilabel': self.multilabel_classification, 'multiclass': self.multiclass_classification, 'qna': self.qna}
 		for task in config['tasks']:
-			TASK_MAP[task](ft=config['tasks'][task]['ft'], dataset=config['tasks'][task]['dataset'])
+			if config['tasks'][task]['do_task']:
+				TASK_MAP[task]()
 
-
-	def sentiment(self, dataset='rotten_tomatoes', ft=False):
+	def classification(self, cls_type, ft, dataset, epochs, text_column, label_column):
 		if ft:
 			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
 		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
 		
-		model1 = self.model1.load_model(self.model1.classification_model, 'sentiment', train_dataset.get_num_classes())
-		model2 = self.model2.load_model(self.model2.classification_model, 'sentiment', train_dataset.get_num_classes())
+		model1 = self.model1.load_model(self.model1.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
+		model2 = self.model2.load_model(self.model2.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
 
 		opt = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
 		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
@@ -40,58 +40,49 @@ class ModelCompare:
 
 		if ft:
 			tf_train_data_1 = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-																	self.model1.name)
-			model1.fit(tf_train_data_1, epochs=FLAGS.epochs)
+																	self.model1.name, text_label=text_label, label_column=label_column)
+			model1.fit(tf_train_data_1, epochs=epochs)
 
 			del tf_train_data_1
 
 			tf_train_data_2 = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-																	self.model2.name)
-			model2.fit(tf_train_data_2, epochs=FLAGS.epochs)
+																	self.model2.name, text_label=text_label, label_column=label_column)
+			model2.fit(tf_train_data_2, epochs=epochs)
 
 		tf_val_data_1 = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-															self.model1.name)
+															self.model1.name, text_label=text_label, label_column=label_column)
 		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-															self.model2.name)
+															self.model2.name, text_label=text_label, label_column=label_column)
 		print(self.model1.name + ' accuracy = ' + str(model1.evaluate(tf_val_data_1, verbose=0)[1]))
 		print(self.model2.name + ' accuracy = ' + str(model2.evaluate(tf_val_data_2, verbose=0)[1]))
 
 
-	def multilabel_classification(self, dataset='joelito/sem_eval_2010_task_8', ft=False):
-		if ft:
-			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
-		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
-		
-		model1 = self.model1.load_model(self.model1.classification_model, 'multilabel', train_dataset.get_num_classes(label_column='relation'))
-		model2 = self.model2.load_model(self.model2.classification_model, 'multilabel', train_dataset.get_num_classes(label_column='relation'))
+	def sentiment(self):
+		ft = config['tasks']['sentiment']['ft']
+		dataset = config['tasks']['sentiment']['dataset']
+		epochs = config['tasks']['sentiment']['epochs']
+		self.classification('sentiment', ft, dataset, epochs, 'text', 'label')
 
-		opt = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
-		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-		metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
 
-		model1.compile(optimizer=opt, loss=loss_fn, metrics=['accuracy'])
-		model2.compile(optimizer=opt, loss=loss_fn, metrics=['accuracy'])
+	def multilabel_classification(self):
+		ft = config['tasks']['multilabel']['ft']
+		dataset = config['tasks']['multilabel']['dataset']
+		epochs = config['tasks']['multilabel']['epochs']
+		self.classification('multilabel', ft, dataset, epochs, 'sentence', 'relation')
 
-		if ft:
-			tf_train_data_1 = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-																	self.model1.name, text_label='sentence', label_column='relation')
-			model1.fit(tf_train_data_1, epochs=FLAGS.epochs)
 
-			del tf_train_data_1
-
-			tf_train_data_2 = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-																	self.model2.name, text_label='sentence', label_column='relation')
-			model2.fit(tf_train_data_2, epochs=FLAGS.epochs)
-
-		tf_val_data_1 = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-															self.model1.name, text_label='sentence', label_column='relation')
-		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-															self.model2.name, text_label='sentence', label_column='relation')
-		print(self.model1.name + ' accuracy = ' + str(model1.evaluate(tf_val_data_1, verbose=0)[1]))
-		print(self.model2.name + ' accuracy = ' + str(model2.evaluate(tf_val_data_2, verbose=0)[1]))
+	def multiclass_classification(self, dataset='', ft=False):
+		ft = config['tasks']['multiclass']['ft']
+		dataset = config['tasks']['multiclass']['dataset']
+		epochs = config['tasks']['multiclass']['epochs']
+		self.classification('multiclass', ft, dataset, epochs, 'text', 'label')
 
 
 	def qna(self, dataset='squad', ft=False):
+		ft = config['tasks']['qna']['ft']
+		dataset = config['tasks']['qna']['dataset']
+		epochs = config['tasks']['qna']['epochs']
+
 		if dataset != 'squad':
 			warning.warn('Only SQuAD is currently supported for QnA. Defaulting to SQuAD')
 		if ft:
@@ -99,40 +90,6 @@ class ModelCompare:
 		val_dataset = Dataset('squad', split=self.VALIDATION_STR)
 
 		model1 = self.model1.load_model(self.model1.qna_model, 'qna', train_dataset.get_num_classes(label_column='relation'))
-
-
-	def multiclass_classification(self, dataset='', ft=False):
-		if ft:
-			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
-		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
-		
-		model1 = self.model1.load_model(self.model1.classification_model, 'sentiment', train_dataset.get_num_classes())
-		model2 = self.model2.load_model(self.model2.classification_model, 'sentiment', train_dataset.get_num_classes())
-
-		opt = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
-		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-		metric = tf.keras.metrics.SparseCategoricalAccuracy('accuracy')
-
-		model1.compile(optimizer=opt, loss=loss_fn, metrics=['accuracy'])
-		model2.compile(optimizer=opt, loss=loss_fn, metrics=['accuracy'])
-
-		if ft:
-			tf_train_data_1 = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-																	self.model1.name)
-			model1.fit(tf_train_data_1, epochs=FLAGS.epochs)
-
-			del tf_train_data_1
-
-			tf_train_data_2 = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-																	self.model2.name)
-			model2.fit(tf_train_data_2, epochs=FLAGS.epochs)
-
-		tf_val_data_1 = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-															self.model1.name)
-		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-															self.model2.name)
-		print(self.model1.name + ' accuracy = ' + str(model1.evaluate(tf_val_data_1, verbose=0)[1]))
-		print(self.model2.name + ' accuracy = ' + str(model2.evaluate(tf_val_data_2, verbose=0)[1]))
 
 
 if __name__ == '__main__':
