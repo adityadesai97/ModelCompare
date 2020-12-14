@@ -30,8 +30,8 @@ class ModelCompare:
 			val_dataset = Dataset(dataset[0], dataset[1], split=Dataset.VALIDATION_STR)
 		else:
 			if ft:
-				train_dataset = Dataset(dataset, name=subset, split=Dataset.TRAIN_STR)
-			val_dataset = Dataset(dataset, name=subset, split=Dataset.VALIDATION_STR)
+				train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
+			val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
 		
 		model1 = self.model1.load_model(self.model1.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
 		model2 = self.model2.load_model(self.model2.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
