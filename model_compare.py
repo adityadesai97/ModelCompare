@@ -1,4 +1,6 @@
+import json
 import warnings
+from collections import defaultdict
 
 from dataset import Dataset
 from model import Model
@@ -11,6 +13,7 @@ class ModelCompare:
 	def __init__(self, model1, model2):
 		self.model1 = Model(model1)
 		self.model2 = Model(model2)
+		self.results = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
 
 	def __str__(self):
@@ -22,6 +25,23 @@ class ModelCompare:
 		for task in config['tasks']:
 			if config['tasks'][task]['do_task']:
 				TASK_MAP[task]()
+		with open('results.json', 'w') as fp:
+		    json.dump(self.results, fp)
+
+
+	def sentiment(self):
+		ft = config['tasks']['sentiment']['ft']
+		dataset = config['tasks']['sentiment']['dataset']
+		epochs = config['tasks']['sentiment']['epochs']
+		self.classification('sentiment', ft, dataset, epochs, 'text', 'label')
+
+
+	def multilabel_classification(self):
+		ft = config['tasks']['multilabel']['ft']
+		dataset = config['tasks']['multilabel']['dataset']
+		epochs = config['tasks']['multilabel']['epochs']
+		self.classification('multilabel', ft, dataset, epochs, 'sentence', 'relation')
+
 
 	def classification(self, cls_type, ft, dataset, epochs, text_column, label_column):
 		if isinstance(dataset, tuple):
@@ -58,22 +78,10 @@ class ModelCompare:
 															self.model1.name, text_column=text_column, label_column=label_column)
 		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
 															self.model2.name, text_column=text_column, label_column=label_column)
-		print(self.model1.name + ' accuracy = ' + str(model1.evaluate(tf_val_data_1, verbose=0)[1]))
-		print(self.model2.name + ' accuracy = ' + str(model2.evaluate(tf_val_data_2, verbose=0)[1]))
-
-
-	def sentiment(self):
-		ft = config['tasks']['sentiment']['ft']
-		dataset = config['tasks']['sentiment']['dataset']
-		epochs = config['tasks']['sentiment']['epochs']
-		self.classification('sentiment', ft, dataset, epochs, 'text', 'label')
-
-
-	def multilabel_classification(self):
-		ft = config['tasks']['multilabel']['ft']
-		dataset = config['tasks']['multilabel']['dataset']
-		epochs = config['tasks']['multilabel']['epochs']
-		self.classification('multilabel', ft, dataset, epochs, 'sentence', 'relation')
+		self.results[cls_type][self.model1.name]['accuracy'] = model1.evaluate(tf_val_data_1, verbose=0)[1]
+		self.results[cls_type][self.model2.name]['accuracy'] = model2.evaluate(tf_val_data_2, verbose=0)[1]
+		# print(self.model1.name + ' accuracy = ' + str(model1.evaluate(tf_val_data_1, verbose=0)[1]))
+		# print(self.model2.name + ' accuracy = ' + str(model2.evaluate(tf_val_data_2, verbose=0)[1]))
 
 
 	def qna(self):
