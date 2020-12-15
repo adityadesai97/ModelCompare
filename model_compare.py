@@ -24,6 +24,7 @@ class ModelCompare:
 
 
 	def run_tasks(self):
+		Model.prepare()
 		TASK_MAP = {'sentiment': self.sentiment, 'multilabel': self.multilabel_classification, 'qna': self.qna}
 		for task in config['tasks']:
 			if config['tasks'][task]['do_task']:
@@ -57,80 +58,46 @@ class ModelCompare:
 		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
 		metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()]
 
-		model = self.model1.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
-		model.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+		for i in (self.model1, self.model2):
+			model = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
+			model.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
 
-		if ft:
-			tf_train_data = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-																	self.model1.name, text_column=text_column, label_column=label_column)
-			model.fit(tf_train_data, epochs=epochs)
+			if ft:
+				tf_train_data = train_dataset.classification_tokenize(i.tokenizer, Model.BATCH_SIZE, 
+																		i.name, text_column=text_column, label_column=label_column)
+				model.fit(tf_train_data, epochs=epochs)
 
-			if distil:
-				model_soft_labels = model.predict(tf_train_data)
-				student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
-				model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
+				if distil:
+					model_soft_labels = model.predict(tf_train_data)
+					student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+					model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
 
-				student_loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
-				loss_wts = {'soft': Model.ALPHA, 'hard': 1 - Model.ALPHA}
-				model_student.compile(optimizer=opt, loss=student_loss_fn, loss_weights=loss_wts, metrics=metrics)
+					student_loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
+					loss_wts = {'soft': Model.ALPHA, 'hard': 1 - Model.ALPHA}
+					model_student.compile(optimizer=opt, loss=student_loss_fn, loss_weights=loss_wts, metrics=metrics)
 
-				model_student.fit(student_dataset, epochs=epochs)
+					model_student.fit(student_dataset, epochs=epochs)
 
-			del tf_train_data
-			del student_dataset
-			del model_soft_labels
+					del model_soft_labels
+					del student_dataset
 
-		tf_val_data = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
-															self.model1.name, text_column=text_column, label_column=label_column)
-		model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
-		self.results[cls_type][self.model1.name] = model_eval
+				del tf_train_data
 
-		model_soft_labels = model.predict(tf_val_data)
-		val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
-		model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
-		self.results[cls_type]['distilled-' + self.model1.name] = model_eval
-
-		del tf_val_data
-		del val_student_dataset
-		K.clear_session()
-
-
-		model = self.model2.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
-		model.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
-
-		if ft:
-			tf_train_data = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-																	self.model2.name, text_column=text_column, label_column=label_column)
-			model.fit(tf_train_data, epochs=epochs)
+			tf_val_data = val_dataset.classification_tokenize(i.tokenizer, Model.BATCH_SIZE, 
+																i.name, text_column=text_column, label_column=label_column)
+			model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
+			self.results[cls_type][i.name] = model_eval
 
 			if distil:
-				model_soft_labels = model.predict(tf_train_data)
-				student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
-				model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
+				model_soft_labels = model.predict(tf_val_data)
+				val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+				model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
+				self.results[cls_type]['distilled-' + i.name] = model_eval
 
-				student_loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
-				loss_wts = {'soft': Model.ALPHA, 'hard': 1 - Model.ALPHA}
-				model_student.compile(optimizer=opt, loss=student_loss_fn, loss_weights=loss_wts, metrics=metrics)
+				del tf_val_data
+				del val_student_dataset
 
-				model_student.fit(student_dataset, epochs=epochs)
-
-			del tf_train_data
-			del student_dataset
-			del model_soft_labels
-
-		tf_val_data = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-															self.model2.name, text_column=text_column, label_column=label_column)
-		model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
-		self.results[cls_type][self.model2.name] = model_eval
-
-		model_soft_labels = model.predict(tf_val_data)
-		val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
-		model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
-		self.results[cls_type]['distilled-' + self.model2.name] = model_eval
-
-		del tf_val_data
-		del val_student_dataset
-		K.clear_session()
+			Model.clean_up()
 
 
 	def qna(self):
@@ -206,7 +173,7 @@ class ModelCompare:
 			d1 = json.load(f)
 		with open('qna_results_' + model2_name + '.json') as f:
 			d2 = json.load(f)
-		self.results = {'qna': {model1_name: d1['qna'][model1_name], model2_name: d2['qna'][model2_name]}}
+		self.results['qna'] = {model1_name: d1['qna'][model1_name], model2_name: d2['qna'][model2_name]}
 
 
 if __name__ == '__main__':

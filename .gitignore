@@ -1,2 +1,5 @@
 __pycache__/
 .ipynb_checkpoints/
+*.json
+qna_output/
+runs/

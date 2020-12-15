@@ -72,6 +72,22 @@ class Model:
 			return loss
 		return loss_fn
 
+		
+	@staticmethod
+	def prepare():
+		try:
+			gpu_list = tf.config.list_physical_devices('GPU')
+			for gpu in gpu_list:
+				tf.config.experimental.set_memory_growth(gpu, True)
+			tf.config.set_soft_device_placement(True)
+		except RuntimeError:
+			pass
+
+
+	@staticmethod
+	def clean_up():
+		K.clear_session()
+
 
 	def load_model(self, task, num_classes):
 		if task == 'sentiment':
