@@ -6,19 +6,22 @@ config = {
         	'do_task': True,
             'ft': True,
             'epochs': 1,
-            'dataset': 'joelito/sem_eval_2010_task_8'
+            'dataset': 'joelito/sem_eval_2010_task_8',
+            'distillation': True
         },
         'sentiment': {
         	'do_task': False,
             'ft': True,
             'epochs': 1,
-            'dataset': 'rotten_tomatoes'
+            'dataset': 'rotten_tomatoes',
+            'distillation': False
         },
         'qna': {
         	'do_task': False,
             'ft': True,
             'epochs': 1,
-            'dataset': 'squad'
+            'dataset': 'squad',
+            'distillation': False
         },
     }
 }
