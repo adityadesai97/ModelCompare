@@ -21,7 +21,7 @@ class ModelCompare:
 
 
 	def run_tasks(self):
-		TASK_MAP = {'sentiment': self.sentiment, 'multiclass': self.multiclass_classification, 'qna': self.qna}
+		TASK_MAP = {'sentiment': self.sentiment, 'multilabel': self.multilabel_classification, 'qna': self.qna}
 		for task in config['tasks']:
 			if config['tasks'][task]['do_task']:
 				TASK_MAP[task]()
@@ -33,17 +33,19 @@ class ModelCompare:
 		ft = config['tasks']['sentiment']['ft']
 		dataset = config['tasks']['sentiment']['dataset']
 		epochs = config['tasks']['sentiment']['epochs']
-		self.classification('sentiment', ft, dataset, epochs, 'text', 'label')
+		distil = config['tasks']['sentiment']['distillation']
+		self.classification('sentiment', ft, dataset, epochs, distil, 'text', 'label')
 
 
 	def multilabel_classification(self):
 		ft = config['tasks']['multilabel']['ft']
 		dataset = config['tasks']['multilabel']['dataset']
 		epochs = config['tasks']['multilabel']['epochs']
-		self.classification('multilabel', ft, dataset, epochs, 'sentence', 'relation')
+		distil = config['tasks']['multilabel']['distillation']
+		self.classification('multilabel', ft, dataset, epochs, distil, 'sentence', 'relation')
 
 
-	def classification(self, cls_type, ft, dataset, epochs, text_column, label_column):
+	def classification(self, cls_type, ft, dataset, epochs, distil, text_column='text', label_column='label'):
 		if isinstance(dataset, tuple):
 			if ft:
 				train_dataset = Dataset(dataset[0], dataset[1], split=Dataset.TRAIN_STR)
@@ -58,7 +60,7 @@ class ModelCompare:
 
 		opt = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
 		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-		metrics = ['accuracy', 'f1']
+		metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()]
 
 		model1.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
 		model2.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
@@ -68,20 +70,54 @@ class ModelCompare:
 																	self.model1.name, text_column=text_column, label_column=label_column)
 			model1.fit(tf_train_data_1, epochs=epochs)
 
+			if distil:
+				model1_soft_labels = model1.predict(tf_train_data_1)
+				student_dataset, encoder = train_dataset.student_dataset_encoder(model1_soft_labels, text_column=text_column, label_column=label_column)
+				# distillation_dataset = tf.data.Dataset.zip((tf_train_data_1, student_dataset)).batch(Model.BATCH_SIZE)
+				# print(next(iter(student_dataset)))
+				model1_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
+
+				loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
+				loss_wts = {'soft': Model.ALPHA, 'hard': 1 - Model.ALPHA}
+				model1_student.compile(optimizer=opt, loss=loss_fn, loss_weights=loss_wts, metrics=metrics)
+
+				# print(next(iter(student_dataset)))
+
+				model1_student.fit(student_dataset, epochs=epochs)
+
 			del tf_train_data_1
 
 			tf_train_data_2 = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
 																	self.model2.name, text_column=text_column, label_column=label_column)
 			model2.fit(tf_train_data_2, epochs=epochs)
 
+			# if distil:
+			# 	model2_soft_labels = model2.predict(tf_train_data_2)
+			# 	model2_student = Model.student_model()
+
+			# 	loss_fn = Model.distillation_loss
+			# 	model1_student.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+
+			del tf_train_data_2
+
 		tf_val_data_1 = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
 															self.model1.name, text_column=text_column, label_column=label_column)
 		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
 															self.model2.name, text_column=text_column, label_column=label_column)
-		model1_eval = {k:v for k, v in zip(model1.metric_names, model1.evaluate(tf_val_data_1, verbose=0))}
-		model2_eval = {k:v for k, v in zip(model2.metric_names, model2.evaluate(tf_val_data_2, verbose=0))}
+		model1_eval = {k:v for k, v in zip(model1.metrics_names, model1.evaluate(tf_val_data_1, verbose=0))}
+		model2_eval = {k:v for k, v in zip(model2.metrics_names, model2.evaluate(tf_val_data_2, verbose=0))}
 		self.results[cls_type][self.model1.name] = model1_eval
 		self.results[cls_type][self.model2.name] = model2_eval
+
+		# if config['tasks'][cls_type]['distillation']:
+			# model1_student = Model.load_student_model()
+			# model2_student = Model.load_student_model()
+
+			# model1.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+			# model2.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+
+
+
 
 
 	def qna(self):
