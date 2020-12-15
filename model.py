@@ -10,7 +10,7 @@ from tensorflow.keras.layers import Input, Activation, Embedding, Bidirectional,
 class Model:
 
 
-	MODEL_MAP = {'bert': ('bert-base-uncased', ''), 'distilbert': ('distilbert-base-uncased', ''), 'roberta': ('roberta-base', ''), 'xlnet': ('xlnet-base-uncased', '')}
+	MODEL_MAP = {'bert': ('bert-base-uncased', ''), 'distilbert': ('distilbert-base-uncased', ''), 'roberta': ('roberta-base', ''), 'xlnet': ('xlnet-base-cased', '')}
 
 	MODEL_INPUTS = {'bert': ['input_ids', 'token_type_ids', 'attention_mask'], 'distilbert': ['input_ids', 'token_type_ids', 'attention_mask'], 
 					'roberta': ['input_ids', 'attention_mask'], 'xlnet': []}
