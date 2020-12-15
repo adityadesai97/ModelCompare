@@ -13,12 +13,10 @@ class Model:
 	MODEL_MAP = {'bert': ('bert-base-uncased', ''), 'distilbert': ('distilbert-base-uncased', ''), 'roberta': ('roberta-base', ''), 'xlnet': ('xlnet-base-uncased', '')}
 
 	MODEL_INPUTS = {'bert': ['input_ids', 'token_type_ids', 'attention_mask'], 'distilbert': ['input_ids', 'token_type_ids', 'attention_mask'], 
-					'roberta': ['input_ids', 'attention_mask'], 'xlnet': ['input_ids', 'token_type_ids', 'attention_mask']}
+					'roberta': ['input_ids', 'attention_mask'], 'xlnet': []}
 
 	BATCH_SIZE = 32
 	MAX_SEQ_LEN = 128
-	LEARNING_RATE = 3e-5
-    
 
 	ALPHA = 0.1
 
@@ -34,30 +32,19 @@ class Model:
 	@staticmethod
 	def student_model(task, encoder, num_classes):
 		if task == 'sentiment':
-			# x = Input()
-			# y = encoder(x)
-			# y = Embedding(
-			#         input_dim=len(encoder.get_vocabulary()),
-			#         output_dim=64,
-			#         mask_zero=True)(y)
-			# y = Bidirectional(LSTM(64))(y)
-			# y = Dense(64, activation='relu')(y)
-			# y = Dense(num_classes)(y)
-			# y_1 = Activation('softmax')(y)
-			# y_2 = Activation('softmax')(y)
-
-			# model = tf.keras.Model(x, [y1, y2], [alpha, 1 - alpha])
-
-			model = tf.keras.Sequential([
-			    encoder,
-			    tf.keras.layers.Embedding(
+			x = Input(shape=(1,), dtype=tf.string)
+			y = encoder(x)
+			y = Embedding(
 			        input_dim=len(encoder.get_vocabulary()),
 			        output_dim=64,
-			        mask_zero=True),
-			    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-			    tf.keras.layers.Dense(64, activation='relu'),
-			    tf.keras.layers.Dense(num_classes, activation='softmax')
-			])
+			        mask_zero=True)(y)
+			y = Bidirectional(LSTM(64))(y)
+			y = Dense(64, activation='relu')(y)
+			y = Dense(num_classes)(y)
+			y1 = Activation('softmax', name='soft')(y)
+			y2 = Activation('softmax', name='hard')(y)
+
+			model = tf.keras.Model(x, [y1, y2])
 			return model
 		if task == 'multilabel':
 			x = Input(shape=(1,), dtype=tf.string)
@@ -73,17 +60,6 @@ class Model:
 			y2 = Activation('sigmoid', name='hard')(y)
 
 			model = tf.keras.Model(x, [y1, y2])
-
-			# model = tf.keras.Sequential([
-			#     encoder,
-			#     tf.keras.layers.Embedding(
-			#         input_dim=len(encoder.get_vocabulary()),
-			#         output_dim=64,
-			#         mask_zero=True),
-			#     tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-			#     tf.keras.layers.Dense(64, activation='relu'),
-			#     tf.keras.layers.Dense(num_classes, activation='sigmoid')
-			# ])
 			return model
 
 
@@ -96,12 +72,12 @@ class Model:
 		return loss_fn
 
 
-	def load_model(self, taskclass, task, num_classes):
+	def load_model(self, task, num_classes):
 		if task == 'sentiment':
 			inputs = []
 			for ip in self.MODEL_INPUTS[self.name]:
 				inputs.append(Input((self.MAX_SEQ_LEN,), dtype='int32', name=ip))
-			base_model = taskclass.from_pretrained(self.type[0], num_labels=num_classes,
+			base_model = self.classification_model.from_pretrained(self.type[0], num_labels=num_classes,
 															output_attentions=False,
 															output_hidden_states=False)
 			y = base_model(inputs)[0]
@@ -113,7 +89,7 @@ class Model:
 			inputs = []
 			for ip in self.MODEL_INPUTS[self.name]:
 				inputs.append(Input((self.MAX_SEQ_LEN,), dtype='int32', name=ip))
-			base_model = taskclass.from_pretrained(self.type[0], num_labels=num_classes,
+			base_model = self.classification_model.from_pretrained(self.type[0], num_labels=num_classes,
 															output_attentions=False,
 															output_hidden_states=False)
 			y = base_model(inputs)[0]

@@ -7,6 +7,8 @@ from model import Model
 
 import numpy as np
 
+import copy
+
 # logging.set_verbosity(logging.CRITICAL)
 
 class Dataset:
@@ -52,7 +54,7 @@ class Dataset:
 
 
 	def student_dataset_encoder(self, soft_labels, text_column='text', label_column='label'):
-		dataset = self.data
+		dataset = copy.deepcopy(self.data)
 		dataset.set_format(type='tensorflow', columns=[text_column])
 		features = dataset[text_column]
 		# .to_tensor(default_value=0, shape=(None, Model.MAX_SEQ_LEN))

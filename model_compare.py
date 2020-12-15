@@ -8,8 +8,6 @@ from config import config
 
 import tensorflow as tf
 
-import subprocess
-
 class ModelCompare:
 
 	def __init__(self, model1, model2):
@@ -48,155 +46,106 @@ class ModelCompare:
 
 
 	def classification(self, cls_type, ft, dataset, epochs, distil, text_column='text', label_column='label'):
-		if isinstance(dataset, tuple):
-			if ft:
-				train_dataset = Dataset(dataset[0], dataset[1], split=Dataset.TRAIN_STR)
-			val_dataset = Dataset(dataset[0], dataset[1], split=Dataset.VALIDATION_STR)
-		else:
-			if ft:
-				train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
-			val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
-		
-		model1 = self.model1.load_model(self.model1.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
-		model2 = self.model2.load_model(self.model2.classification_model, cls_type, train_dataset.get_num_classes(label_column=label_column))
+		if ft:
+			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
+		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
 
-		opt = tf.keras.optimizers.Adam(learning_rate=Model.LEARNING_RATE, epsilon=1e-08, clipnorm=1.0)
+		opt = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
 		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
 		metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()]
 
-		model1.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
-		model2.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+		model = self.model1.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
+		model.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
 
 		if ft:
-			tf_train_data_1 = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
+			tf_train_data = train_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
 																	self.model1.name, text_column=text_column, label_column=label_column)
-			model1.fit(tf_train_data_1, epochs=epochs)
+			model.fit(tf_train_data, epochs=epochs)
 
 			if distil:
-				model1_soft_labels = model1.predict(tf_train_data_1)
-				student_dataset, encoder = train_dataset.student_dataset_encoder(model1_soft_labels, text_column=text_column, label_column=label_column)
-				# distillation_dataset = tf.data.Dataset.zip((tf_train_data_1, student_dataset)).batch(Model.BATCH_SIZE)
-				# print(next(iter(student_dataset)))
-				model1_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
+				model_soft_labels = model.predict(tf_train_data)
+				student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+				model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
 
-				loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
+				student_loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
 				loss_wts = {'soft': Model.ALPHA, 'hard': 1 - Model.ALPHA}
-				model1_student.compile(optimizer=opt, loss=loss_fn, loss_weights=loss_wts, metrics=metrics)
+				model_student.compile(optimizer=opt, loss=student_loss_fn, loss_weights=loss_wts, metrics=metrics)
 
-				# print(next(iter(student_dataset)))
+				model_student.fit(student_dataset, epochs=epochs)
 
-				model1_student.fit(student_dataset, epochs=epochs)
+			del tf_train_data
+			del student_dataset
+			del model_soft_labels
 
-			del tf_train_data_1
-
-			tf_train_data_2 = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
-																	self.model2.name, text_column=text_column, label_column=label_column)
-			model2.fit(tf_train_data_2, epochs=epochs)
-
-			# if distil:
-			# 	model2_soft_labels = model2.predict(tf_train_data_2)
-			# 	model2_student = Model.student_model()
-
-			# 	loss_fn = Model.distillation_loss
-			# 	model1_student.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
-
-			del tf_train_data_2
-
-		tf_val_data_1 = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
+		tf_val_data = val_dataset.classification_tokenize(self.model1.tokenizer, Model.BATCH_SIZE, 
 															self.model1.name, text_column=text_column, label_column=label_column)
-		tf_val_data_2 = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
+		model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
+		self.results[cls_type][self.model1.name] = model_eval
+
+		model_soft_labels = model.predict(tf_val_data)
+		val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+		model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
+		self.results[cls_type]['distilled-' + self.model1.name] = model_eval
+
+		del tf_val_data
+		del model
+		del val_student_dataset
+		del model_student
+
+
+		model = self.model2.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
+		model.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+
+		if ft:
+			tf_train_data = train_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
+																	self.model2.name, text_column=text_column, label_column=label_column)
+			model.fit(tf_train_data, epochs=epochs)
+
+			if distil:
+				model_soft_labels = model.predict(tf_train_data)
+				student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+				model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
+
+				student_loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
+				loss_wts = {'soft': Model.ALPHA, 'hard': 1 - Model.ALPHA}
+				model_student.compile(optimizer=opt, loss=student_loss_fn, loss_weights=loss_wts, metrics=metrics)
+
+				model_student.fit(student_dataset, epochs=epochs)
+
+			del tf_train_data
+			del student_dataset
+			del model_soft_labels
+
+		tf_val_data = val_dataset.classification_tokenize(self.model2.tokenizer, Model.BATCH_SIZE, 
 															self.model2.name, text_column=text_column, label_column=label_column)
-		model1_eval = {k:v for k, v in zip(model1.metrics_names, model1.evaluate(tf_val_data_1, verbose=0))}
-		model2_eval = {k:v for k, v in zip(model2.metrics_names, model2.evaluate(tf_val_data_2, verbose=0))}
-		self.results[cls_type][self.model1.name] = model1_eval
-		self.results[cls_type][self.model2.name] = model2_eval
+		model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
+		self.results[cls_type][self.model2.name] = model_eval
 
-		# if config['tasks'][cls_type]['distillation']:
-			# model1_student = Model.load_student_model()
-			# model2_student = Model.load_student_model()
+		model_soft_labels = model.predict(tf_val_data)
+		val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+		model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
+		self.results[cls_type]['distilled-' + self.model2.name] = model_eval
 
-			# model1.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
-			# model2.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
-
-
-
+		del tf_val_data
+		del model
+		del val_student_dataset
+		del model_student
 
 
-	def qna(self): 
-#         config_qa = {"--model_name_or_path": Model.MODEL_MAP[self.model1.name], \
-#                      "--dataset_name": dataset, \
-#                      "--do_train": ft, \
-#                      "--do_eval": True, \
-#                      "--per_device_train_batch_size": Model.BATCH_SIZE, \
-#                      "--learning_rate": Model.LEARNING_RATE, \
-#                      "--num_train_epochs": epochs, \
-#                      "--max_seq_length": Model.MAX_SEQ_LEN, \
-#                      "--doc_stride": 128, \
-#                      "--output_dir": "/tmp/debug_squa" \
-#                     }
-            
-# 		with open('config_qa.json', 'w', encoding='utf-8') as f:
-# 			json.dump(config_qa, f, ensure_ascii=False, indent=4)
+	def qna(self):
 		ft = config['tasks']['qna']['ft']
 		dataset = config['tasks']['qna']['dataset']
 		epochs = config['tasks']['qna']['epochs']
+
 		if dataset != 'squad':
 			warning.warn('Only SQuAD is currently supported for QnA. Defaulting to SQuAD')
-			dataset = 'squad'
 		if ft:
-			command1 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model1.name][0], \
-						'--dataset_name', dataset, \
-						'--do_train', \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
-			command2 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model2.name][0], \
-						'--dataset_name', dataset, \
-						'--do_train', \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
-		else:
-			command1 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model1.name][0], \
-						'--dataset_name', dataset, \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']  
-			command2 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model2.name][0], \
-						'--dataset_name', dataset, \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']            
-		p1 = subprocess.run(command1)
-		p2 = subprocess.run(command2)
-		model1_name = Model.MODEL_MAP[self.model1.name][0].split('-')[0]
-		model2_name = Model.MODEL_MAP[self.model2.name][0].split('-')[0]        
-		with open('qna_results_' + model1_name + '.json') as f:
-			d1 = json.load(f)
-		with open('qna_results_' + model2_name + '.json') as f:
-			d2 = json.load(f)
-		self.results = {'qna': {model1_name: d1['qna'][model1_name], model2_name: d2['qna'][model2_name]}}
-        
+			train_dataset = Dataset('squad', split=self.TRAIN_STR)
+		val_dataset = Dataset('squad', split=self.VALIDATION_STR)
+
+		model1 = self.model1.load_model(self.model1.qna_model, 'qna', train_dataset.get_num_classes(label_column='relation'))
+
+
 if __name__ == '__main__':
 	f = ModelCompare(config['model1'], config['model2'])
 	f.run_tasks()
