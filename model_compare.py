@@ -7,6 +7,9 @@ from model import Model
 from config import config
 
 import tensorflow as tf
+import tensorflow.keras.backend as K
+
+import subprocess
 
 class ModelCompare:
 
@@ -50,7 +53,7 @@ class ModelCompare:
 			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
 		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
 
-		opt = tf.keras.optimizers.Adam(learning_rate=3e-5, epsilon=1e-08, clipnorm=1.0)
+		opt = tf.keras.optimizers.Adam(learning_rate=Model.LEARNING_RATE, epsilon=1e-08, clipnorm=1.0)
 		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
 		metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()]
 
@@ -88,9 +91,8 @@ class ModelCompare:
 		self.results[cls_type]['distilled-' + self.model1.name] = model_eval
 
 		del tf_val_data
-		del model
 		del val_student_dataset
-		del model_student
+		K.clear_session()
 
 
 		model = self.model2.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
@@ -127,23 +129,84 @@ class ModelCompare:
 		self.results[cls_type]['distilled-' + self.model2.name] = model_eval
 
 		del tf_val_data
-		del model
 		del val_student_dataset
-		del model_student
+		K.clear_session()
 
 
 	def qna(self):
+#         config_qa = {"--model_name_or_path": Model.MODEL_MAP[self.model1.name], \
+#                      "--dataset_name": dataset, \
+#                      "--do_train": ft, \
+#                      "--do_eval": True, \
+#                      "--per_device_train_batch_size": Model.BATCH_SIZE, \
+#                      "--learning_rate": Model.LEARNING_RATE, \
+#                      "--num_train_epochs": epochs, \
+#                      "--max_seq_length": Model.MAX_SEQ_LEN, \
+#                      "--doc_stride": 128, \
+#                      "--output_dir": "/tmp/debug_squa" \
+#                     }
+            
+# 		with open('config_qa.json', 'w', encoding='utf-8') as f:
+# 			json.dump(config_qa, f, ensure_ascii=False, indent=4)
 		ft = config['tasks']['qna']['ft']
 		dataset = config['tasks']['qna']['dataset']
 		epochs = config['tasks']['qna']['epochs']
-
 		if dataset != 'squad':
 			warning.warn('Only SQuAD is currently supported for QnA. Defaulting to SQuAD')
+			dataset = 'squad'
 		if ft:
-			train_dataset = Dataset('squad', split=self.TRAIN_STR)
-		val_dataset = Dataset('squad', split=self.VALIDATION_STR)
-
-		model1 = self.model1.load_model(self.model1.qna_model, 'qna', train_dataset.get_num_classes(label_column='relation'))
+			command1 = ['python', 'run_qa.py', \
+						'--model_name_or_path', Model.MODEL_MAP[self.model1.name][0], \
+						'--dataset_name', dataset, \
+						'--do_train', \
+						'--do_eval', \
+						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
+						'--learning_rate', str(Model.LEARNING_RATE), \
+						'--num_train_epochs', str(epochs), \
+						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
+						'--doc_stride', '32', \
+						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
+			command2 = ['python', 'run_qa.py', \
+						'--model_name_or_path', Model.MODEL_MAP[self.model2.name][0], \
+						'--dataset_name', dataset, \
+						'--do_train', \
+						'--do_eval', \
+						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
+						'--learning_rate', str(Model.LEARNING_RATE), \
+						'--num_train_epochs', str(epochs), \
+						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
+						'--doc_stride', '32', \
+						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
+		else:
+			command1 = ['python', 'run_qa.py', \
+						'--model_name_or_path', Model.MODEL_MAP[self.model1.name][0], \
+						'--dataset_name', dataset, \
+						'--do_eval', \
+						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
+						'--learning_rate', str(Model.LEARNING_RATE), \
+						'--num_train_epochs', str(epochs), \
+						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
+						'--doc_stride', '32', \
+						'--output_dir', '/home/jupyter/ModelCompare/qna_output']  
+			command2 = ['python', 'run_qa.py', \
+						'--model_name_or_path', Model.MODEL_MAP[self.model2.name][0], \
+						'--dataset_name', dataset, \
+						'--do_eval', \
+						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
+						'--learning_rate', str(Model.LEARNING_RATE), \
+						'--num_train_epochs', str(epochs), \
+						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
+						'--doc_stride', '32', \
+						'--output_dir', '/home/jupyter/ModelCompare/qna_output']            
+		p1 = subprocess.run(command1)
+		p2 = subprocess.run(command2)
+		model1_name = Model.MODEL_MAP[self.model1.name][0].split('-')[0]
+		model2_name = Model.MODEL_MAP[self.model2.name][0].split('-')[0]        
+		with open('qna_results_' + model1_name + '.json') as f:
+			d1 = json.load(f)
+		with open('qna_results_' + model2_name + '.json') as f:
+			d2 = json.load(f)
+		self.results = {'qna': {model1_name: d1['qna'][model1_name], model2_name: d2['qna'][model2_name]}}
 
 
 if __name__ == '__main__':
