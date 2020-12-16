@@ -4,7 +4,7 @@ A framework to compare 2 large language models. The language models must be avai
 
 # Installation:
 ```
-git clone 
+git clone https://github.com/adityadesai97/ModelCompare.git
 ```
 
 # Usage:
