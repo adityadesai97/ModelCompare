@@ -26,7 +26,7 @@ git clone https://github.com/adityadesai97/ModelCompare.git
 ```
 
 # Usage:
-## Set up config.py as follows:
+## Configuring:
 ```
 config = {
     'model1': '',
@@ -55,7 +55,7 @@ config = {
     }
 }
 ```
-## Run the code as follows:
+## Running the code:
 ```
 python model_compare.py
 ```
