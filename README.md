@@ -1,6 +1,6 @@
 # ModelCompare
-## Class project for Practical Deep Learning System Performance.
-### A framework to compare 2 large language models. The language models must be available on Huggingface's Transformers library.
+### Class project for Practical Deep Learning System Performance.
+A framework to compare 2 large language models. The language models must be available on Huggingface's Transformers library.
 
 # Installation:
 ```
