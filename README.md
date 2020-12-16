@@ -17,6 +17,7 @@ Datasets supported:
 3. Question Answering: SQuAD
 
 Training hyperparameters like batch size and learning rate can be changed in models.py (BATCH_SIZE, LEARNING_RATE)
+
 Classification tasks also support a distillation feature. Distillation hyperparameters can be changed in models.py (ALPHA, TEMPERATURE).
 
 # Installation:
