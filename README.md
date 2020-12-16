@@ -1,5 +1,4 @@
 # ModelCompare
-### Class project for Practical Deep Learning System Performance.
 A framework to compare 2 large language models.
 
 Models supported:
