@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import warnings
 from collections import defaultdict
 
@@ -93,18 +94,24 @@ class ModelCompare:
 
 			tf_val_data = val_dataset.classification_tokenize(i.tokenizer, Model.BATCH_SIZE, 
 																i.name, text_column=text_column, label_column=label_column)
+			start = time.time()
 			model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
+			time_taken = time.time() - start
 			self.results[cls_type][i.name] = model_eval
 			self.results[cls_type][i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+			self.results[cls_type][i.name]['time taken'] = time_taken
 			del self.results[cls_type][i.name]['precision']
 			del self.results[cls_type][i.name]['recall']
 
 			if distil:
 				model_soft_labels = model.predict(tf_val_data)
 				val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+				start = time.time()
 				model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
+				time_taken = time.time() - start
 				self.results[cls_type]['distilled-' + i.name] = model_eval
 				self.results[cls_type]['distilled-' + i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+				self.results[cls_type]['distilled-' + i.name]['time taken'] = time_taken
 				del self.results[cls_type]['distilled-' + i.name]['precision']
 				del self.results[cls_type]['distilled-' + i.name]['recall']
 
@@ -180,6 +187,11 @@ class ModelCompare:
 						'--doc_stride', '32', \
 						'--output_dir', '/home/jupyter/ModelCompare/qna_output']            
 		p1 = subprocess.run(command1)
+		try:
+			os.rmdir('qna_output/')
+			os.rmdir('runs/')
+		except OSError as e:
+			print("Error: %s : %s" % (dir_path, e.strerror))
 		p2 = subprocess.run(command2)
 		model1_name = Model.MODEL_MAP[self.model1.name][0].split('-')[0]
 		model2_name = Model.MODEL_MAP[self.model2.name][0].split('-')[0]        

@@ -3,7 +3,7 @@ from transformers import AutoTokenizer, TFAutoModelForSequenceClassification, TF
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from tensorflow.keras.layers import Input, Activation, Embedding, Bidirectional, LSTM, Dense, Lambda
+from tensorflow.keras.layers import Input, Activation, Embedding, Bidirectional, LSTM, Dense, Lambda, BatchNormalization, Dropout
 
 # logging.set_verbosity(logging.CRITICAL)
 
@@ -41,7 +41,10 @@ class Model:
 			        output_dim=64,
 			        mask_zero=True)(y)
 			y = Bidirectional(LSTM(64))(y)
+# 			y = Bidirectional(LSTM(64))(y)
 			y = Dense(64, activation='relu')(y)
+			y = BatchNormalization()(y)
+			y = Dropout(0.2)(y)
 			y = Dense(num_classes)(y)
 			y1 = Lambda(lambda x: x / temperature)(y)
 			y1 = Activation('softmax', name='soft')(y1)
@@ -57,7 +60,10 @@ class Model:
 			        output_dim=64,
 			        mask_zero=True)(y)
 			y = Bidirectional(LSTM(64))(y)
+# 			y = Bidirectional(LSTM(64))(y)
 			y = Dense(64, activation='relu')(y)
+			y = BatchNormalization()(y)
+			y = Dropout(0.2)(y)
 			y = Dense(num_classes)(y)
 			y1 = Lambda(lambda x: x / temperature)(y)
 			y1 = Activation('sigmoid', name='soft')(y1)
