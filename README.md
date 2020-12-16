@@ -1,6 +1,24 @@
 # ModelCompare
 ### Class project for Practical Deep Learning System Performance.
-A framework to compare 2 large language models. The language models must be available on Huggingface's Transformers library.
+A framework to compare 2 large language models.
+
+Models supported:
+1. BERT
+2. XLNet
+3. RoBERTa.
+
+Tasks supported:
+1. Multilabel Classification
+2. Sentiment Classification
+3. Question Answering
+
+Datasets supported:
+1. Multilabel Classification - sem_eval_2010_task_8
+2. Sentiment Classification - rotten_tomatoes
+3. Question Answering: SQuAD
+
+Training hyperparameters like batch size and learning rate can be changed in models.py (BATCH_SIZE, LEARNING_RATE)
+Classification tasks also support a distillation feature. Distillation hyperparameters can be changed in models.py (ALPHA, TEMPERATURE).
 
 # Installation:
 ```
