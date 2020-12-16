@@ -1,3 +1,4 @@
+import os
 import json
 import warnings
 from collections import defaultdict
@@ -24,12 +25,16 @@ class ModelCompare:
 
 
 	def run_tasks(self):
+		if not os.path.exists('outputs'):
+			os.makedirs('outputs')
 		Model.prepare()
 		TASK_MAP = {'sentiment': self.sentiment, 'multilabel': self.multilabel_classification, 'qna': self.qna}
+		op_name = ''
 		for task in config['tasks']:
 			if config['tasks'][task]['do_task']:
+				op_name = op_name + task + '_' + str(config['tasks'][task]['epochs']) + '_'
 				TASK_MAP[task]()
-		with open('results.json', 'w') as fp:
+		with open('outputs/' + op_name[:-1] + '.json', 'w') as fp:
 		    json.dump(self.results, fp)
 
 
@@ -56,7 +61,7 @@ class ModelCompare:
 
 		opt = tf.keras.optimizers.Adam(learning_rate=Model.LEARNING_RATE, epsilon=1e-08, clipnorm=1.0)
 		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-		metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()]
+		metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()]
 
 		for i in (self.model1, self.model2):
 			model = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
@@ -68,12 +73,15 @@ class ModelCompare:
 				model.fit(tf_train_data, epochs=epochs)
 
 				if distil:
-					model_soft_labels = model.predict(tf_train_data)
+					model_teacher = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column), for_distillation=True)
+					model_teacher.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
+					model_teacher.fit(tf_train_data, epochs=epochs)
+					model_soft_labels = model_teacher.predict(tf_train_data)
 					student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
-					model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column))
+					model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column), temperature=Model.TEMPERATURE)
 
 					student_loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
-					loss_wts = {'soft': Model.ALPHA, 'hard': 1 - Model.ALPHA}
+					loss_wts = {'soft': 1 - Model.ALPHA, 'hard': Model.ALPHA}
 					model_student.compile(optimizer=opt, loss=student_loss_fn, loss_weights=loss_wts, metrics=metrics)
 
 					model_student.fit(student_dataset, epochs=epochs)
@@ -87,12 +95,18 @@ class ModelCompare:
 																i.name, text_column=text_column, label_column=label_column)
 			model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
 			self.results[cls_type][i.name] = model_eval
+			self.results[cls_type][i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+			del self.results[cls_type][i.name]['precision']
+			del self.results[cls_type][i.name]['recall']
 
 			if distil:
 				model_soft_labels = model.predict(tf_val_data)
 				val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
 				model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
 				self.results[cls_type]['distilled-' + i.name] = model_eval
+				self.results[cls_type]['distilled-' + i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+				del self.results[cls_type]['distilled-' + i.name]['precision']
+				del self.results[cls_type]['distilled-' + i.name]['recall']
 
 				del tf_val_data
 				del val_student_dataset

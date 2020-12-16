@@ -60,7 +60,7 @@ class Dataset:
 		# .to_tensor(default_value=0, shape=(None, Model.MAX_SEQ_LEN))
 		hard_labels = tf.keras.utils.to_categorical(dataset[label_column], num_classes=self.get_num_classes(label_column=label_column))
 		labels = {'soft': soft_labels, 'hard': hard_labels}
-		tfdataset = tf.data.Dataset.from_tensor_slices((features, labels)).batch(Model.BATCH_SIZE)
+		tfdataset = tf.data.Dataset.from_tensor_slices((features, labels)).shuffle(self.data.num_rows).batch(Model.BATCH_SIZE)
 		VOCAB_SIZE = 30522
 		encoder = tf.keras.layers.experimental.preprocessing.TextVectorization(
 		    max_tokens=VOCAB_SIZE)
@@ -76,5 +76,5 @@ class Dataset:
 		dataset.set_format(type='tensorflow', columns=Model.MODEL_INPUTS[model_name]+[label_column])
 		features = {x: dataset[x].to_tensor(default_value=0, shape=(None, Model.MAX_SEQ_LEN)) for x in Model.MODEL_INPUTS[model_name]}
 		labels = tf.keras.utils.to_categorical(dataset[label_column], num_classes=self.get_num_classes(label_column=label_column))
-		tfdataset = tf.data.Dataset.from_tensor_slices((features, labels)).batch(Model.BATCH_SIZE)
+		tfdataset = tf.data.Dataset.from_tensor_slices((features, labels)).shuffle(self.data.num_rows).batch(Model.BATCH_SIZE)
 		return tfdataset

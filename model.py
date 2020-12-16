@@ -3,23 +3,24 @@ from transformers import AutoTokenizer, TFAutoModelForSequenceClassification, TF
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from tensorflow.keras.layers import Input, Activation, Embedding, Bidirectional, LSTM, Dense
+from tensorflow.keras.layers import Input, Activation, Embedding, Bidirectional, LSTM, Dense, Lambda
 
 # logging.set_verbosity(logging.CRITICAL)
 
 class Model:
 
 
-	MODEL_MAP = {'bert': ('bert-base-uncased', ''), 'distilbert': ('distilbert-base-uncased', ''), 'roberta': ('roberta-base', ''), 'xlnet': ('xlnet-base-cased', '')}
+	MODEL_MAP = {'bert': ('bert-base-uncased', ''), 'roberta': ('roberta-base', ''), 'xlnet': ('xlnet-base-cased', '')}
 
-	MODEL_INPUTS = {'bert': ['input_ids', 'token_type_ids', 'attention_mask'], 'distilbert': ['input_ids', 'token_type_ids', 'attention_mask'], 
-					'roberta': ['input_ids', 'attention_mask'], 'xlnet': ['input_ids', 'token_type_ids', 'attention_mask']}
+	MODEL_INPUTS = {'bert': ['input_ids', 'token_type_ids', 'attention_mask'], 
+					'roberta': ['input_ids', 'attention_mask'], 'xlnet': ['input_ids', 'attention_mask']}
 
 	BATCH_SIZE = 32
 	MAX_SEQ_LEN = 128
 	LEARNING_RATE = 3e-5
 
 	ALPHA = 0.1
+	TEMPERATURE = 2
 
 
 	def __init__(self, name):
@@ -31,7 +32,7 @@ class Model:
 
 
 	@staticmethod
-	def student_model(task, encoder, num_classes):
+	def student_model(task, encoder, num_classes, temperature=2):
 		if task == 'sentiment':
 			x = Input(shape=(1,), dtype=tf.string)
 			y = encoder(x)
@@ -42,7 +43,8 @@ class Model:
 			y = Bidirectional(LSTM(64))(y)
 			y = Dense(64, activation='relu')(y)
 			y = Dense(num_classes)(y)
-			y1 = Activation('softmax', name='soft')(y)
+			y1 = Lambda(lambda x: x / temperature)(y)
+			y1 = Activation('softmax', name='soft')(y1)
 			y2 = Activation('softmax', name='hard')(y)
 
 			model = tf.keras.Model(x, [y1, y2])
@@ -57,7 +59,8 @@ class Model:
 			y = Bidirectional(LSTM(64))(y)
 			y = Dense(64, activation='relu')(y)
 			y = Dense(num_classes)(y)
-			y1 = Activation('sigmoid', name='soft')(y)
+			y1 = Lambda(lambda x: x / temperature)(y)
+			y1 = Activation('sigmoid', name='soft')(y1)
 			y2 = Activation('sigmoid', name='hard')(y)
 
 			model = tf.keras.Model(x, [y1, y2])
@@ -89,7 +92,7 @@ class Model:
 		K.clear_session()
 
 
-	def load_model(self, task, num_classes):
+	def load_model(self, task, num_classes, for_distillation=False):
 		if task == 'sentiment':
 			inputs = []
 			for ip in self.MODEL_INPUTS[self.name]:
@@ -98,6 +101,8 @@ class Model:
 															output_attentions=False,
 															output_hidden_states=False)
 			y = base_model(inputs)[0]
+			if for_distillation:
+				y = Lambda(lambda x: x / self.TEMPERATURE)(y)
 			y = Activation('softmax')(y)
 
 			model = tf.keras.Model(inputs, y)
@@ -110,6 +115,8 @@ class Model:
 															output_attentions=False,
 															output_hidden_states=False)
 			y = base_model(inputs)[0]
+			if for_distillation:
+				y = Lambda(lambda x: x / self.TEMPERATURE)(y)
 			y = Activation('sigmoid')(y)
 
 			model = tf.keras.Model(inputs, y)
