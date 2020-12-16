@@ -60,11 +60,11 @@ class ModelCompare:
 			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
 		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
 
-		opt = tf.keras.optimizers.Adam(learning_rate=Model.LEARNING_RATE, epsilon=1e-08, clipnorm=1.0)
-		loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
-		metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()]
-
 		for i in (self.model1, self.model2):
+			opt = tf.keras.optimizers.Adam(learning_rate=Model.LEARNING_RATE, epsilon=1e-08, clipnorm=1.0)
+			loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
+			metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()]
+
 			model = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
 			model.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
 
@@ -98,7 +98,10 @@ class ModelCompare:
 			model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
 			time_taken = time.time() - start
 			self.results[cls_type][i.name] = model_eval
-			self.results[cls_type][i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+			try:
+				self.results[cls_type][i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+			except ZeroDivisionError:
+				self.results[cls_type][i.name]['f1'] = 0
 			self.results[cls_type][i.name]['time taken'] = time_taken
 			del self.results[cls_type][i.name]['precision']
 			del self.results[cls_type][i.name]['recall']
@@ -110,7 +113,10 @@ class ModelCompare:
 				model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
 				time_taken = time.time() - start
 				self.results[cls_type]['distilled-' + i.name] = model_eval
-				self.results[cls_type]['distilled-' + i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+				try:
+					self.results[cls_type]['distilled-' + i.name]['f1'] = (2 * model_eval['precision'] * model_eval['recall']) / (model_eval['precision'] + model_eval['recall'])
+				except ZeroDivisionError:
+					self.results[cls_type]['distilled-' + i.name]['f1'] = 0
 				self.results[cls_type]['distilled-' + i.name]['time taken'] = time_taken
 				del self.results[cls_type]['distilled-' + i.name]['precision']
 				del self.results[cls_type]['distilled-' + i.name]['recall']

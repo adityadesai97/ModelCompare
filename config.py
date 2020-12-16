@@ -1,13 +1,13 @@
 config = {
-    'model1': 'bert',
-    'model2': 'xlnet',
+    'model1': 'roberta',
+    'model2': 'bert',
     'tasks': {
         'multilabel': {
             'do_task': True,
             'ft': True,
-            'epochs': 1,
+            'epochs': 20,
             'dataset': 'joelito/sem_eval_2010_task_8',
-            'distillation': True
+            'distillation': False
         },
         'sentiment': {
             'do_task': False,
