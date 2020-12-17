@@ -9,9 +9,10 @@ import numpy as np
 
 import copy
 
-# logging.set_verbosity(logging.CRITICAL)
-
 class Dataset:
+	'''
+	Loads datasets and tokenizes them
+	'''
 
 	HF_DATASETS = list_datasets()
 	DATA_PATH = '../data/'
@@ -21,6 +22,11 @@ class Dataset:
 	VALIDATION_STR = 'validation'
 
 	def __init__(self, name, split):
+		'''
+		Initialzes dataset
+		:param name: name of dataset
+		:param split: train/validation/test split
+		'''
 		self.name = name
 		self.split = split
 		if self.name not in self.HF_DATASETS:
@@ -32,10 +38,17 @@ class Dataset:
 
 
 	def get_num_classes(self, label_column='label'):
+		'''
+		Fetches number of classes in dataset
+		:return: number of classes in dataset
+		'''
 		return self.data.features[label_column].num_classes
 
 
 	def get_dataset(self):
+		'''
+		Loads dataset from Huggingface repository
+		'''
 		if self.type == 'hf':
 			if self.split == self.VALIDATION_STR:
 				try:
@@ -54,6 +67,14 @@ class Dataset:
 
 
 	def student_dataset_encoder(self, soft_labels, batch_size, text_column='text', label_column='label'):
+		'''
+		Creates student dataset in tf.Dataset format along with student model encoder
+		:param soft_labels: soft labels from teacher model
+		:param batch_size: batch_size
+		:param text_column: column name for text in dataset
+		:param label_column: column name for label in dataset
+		:return: student dataset and student model encoder
+		'''
 		dataset = copy.deepcopy(self.data)
 		dataset.set_format(type='tensorflow', columns=[text_column])
 		features = dataset[text_column]
@@ -69,6 +90,14 @@ class Dataset:
 
 
 	def classification_tokenize(self, tokenizer, batch_size, max_seq_len, model_name, text_column='text', label_column='label'):
+		'''
+		Tokenizes data for classification task
+		:param tokenizer: tokenizer class
+		:param batch_size: batch_size
+		:param max_seq_len: maximum sequence length
+		:param model_name: model name
+		:return: tokenized data
+		'''
 		def encode(example):
 			return tokenizer(example[text_column], padding='max_length', truncation=True)
 		dataset = self.data.map(encode)

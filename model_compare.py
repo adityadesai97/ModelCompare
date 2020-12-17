@@ -15,18 +15,32 @@ import tensorflow.keras.backend as K
 import subprocess
 
 class ModelCompare:
+	'''
+	Main class that controls the framework
+	'''
 
 	def __init__(self, model1, model2):
+		'''
+		Initializes model instances and results variable
+		:param model1: name of first model
+		:param model2: name of second model
+		'''
 		self.model1 = Model(model1)
 		self.model2 = Model(model2)
 		self.results = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
 
 	def __str__(self):
+		'''
+		Prints model names
+		'''
 		return 'Model 1: ' + self.model1.name + '\n' + 'Model 2: ' + self.model2.name + '\n'
 
 
 	def run_tasks(self):
+		'''
+		Figures out which tasks to run from the configuration file and calls the appropriate methods
+		'''
 		if not os.path.exists('outputs'):
 			os.makedirs('outputs')
 		Model.prepare()
@@ -41,6 +55,9 @@ class ModelCompare:
 
 
 	def sentiment(self):
+		'''
+		Collects sentiment task params and runs classification method
+		'''
 		ft = config['tasks']['sentiment']['ft']
 		dataset = config['tasks']['sentiment']['dataset']
 		text_column = config['tasks']['sentiment']['text_column']
@@ -56,6 +73,9 @@ class ModelCompare:
 
 
 	def multilabel_classification(self):
+		'''
+		Collects multilabel classification task params and runs classification method
+		'''
 		ft = config['tasks']['multilabel']['ft']
 		dataset = config['tasks']['multilabel']['dataset']
 		text_column = config['tasks']['multilabel']['text_column']
@@ -71,6 +91,21 @@ class ModelCompare:
 
 
 	def classification(self, cls_type, ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature, text_column, label_column):
+		'''
+		Loads datasets, models and runs training and evaluation pipelines
+		:param cls_type: classifictaion task type
+		:param ft: whether finetuning should be done
+		:param dataset: dataset name
+		:param epochs: number of training epochs
+		:param batch_size: batch size
+		:param learning_rate: learning rate
+		:param max_seq_len: maximum sequence length
+		:param distil: whether to distil model
+		:param alpha: weight for student loss
+		:param temperature: temperature for softmax operation for distillation
+		:param text_column: column name for text in dataset
+		:param label_column: column name for label in dataset
+		'''
 		if ft:
 			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
 		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
@@ -143,6 +178,9 @@ class ModelCompare:
 
 
 	def qna(self):
+		'''
+		Collects question answering task params and runs qna task
+		'''
 		ft = config['tasks']['qna']['ft']
 		dataset = config['tasks']['qna']['dataset']
 		epochs = config['tasks']['qna']['epochs']
