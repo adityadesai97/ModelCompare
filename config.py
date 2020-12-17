@@ -31,7 +31,7 @@ config = {
             'temperature': 2
         },
         'qna': {
-            'do_task': True,
+            'do_task': False,
             'ft': True,
             'epochs': 1,
             'dataset': 'squad',
