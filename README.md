@@ -11,10 +11,10 @@ Tasks supported:
 2. Sentiment Classification
 3. Question Answering
 
-Datasets supported:
-1. Multilabel Classification - sem_eval_2010_task_8
-2. Sentiment Classification - rotten_tomatoes
-3. Question Answering: SQuAD
+Default datasets:
+1. Multilabel Classification
+2. Sentiment Classification
+3. Question Answering
 
 Training hyperparameters like batch size and learning rate can be changed in [config.py](https://github.com/adityadesai97/ModelCompare/blob/main/config.py)
 
