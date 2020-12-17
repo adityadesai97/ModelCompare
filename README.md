@@ -27,7 +27,6 @@ git clone https://github.com/adityadesai97/ModelCompare.git
 
 # Usage:
 ## Configuring:
-```
 An example configuration is in [config.py](https://github.com/adityadesai97/ModelCompare/blob/main/config.py)
 
 All values are required. Leave default values if you do not want to vary them.
@@ -48,7 +47,6 @@ Hyperparameters:
     3. distillation
     4. alpha
     5. temperature
-```
 ## Running the code:
 ```
 python model_compare.py
