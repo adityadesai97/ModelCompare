@@ -16,9 +16,9 @@ Datasets supported:
 2. Sentiment Classification - rotten_tomatoes
 3. Question Answering: SQuAD
 
-Training hyperparameters like batch size and learning rate can be changed in models.py (BATCH_SIZE, LEARNING_RATE)
+Training hyperparameters like batch size and learning rate can be changed in [config.py](https://github.com/adityadesai97/ModelCompare/blob/main/config.py)
 
-Classification tasks also support a distillation feature. Distillation hyperparameters can be changed in models.py (ALPHA, TEMPERATURE).
+Classification tasks also support a distillation feature. Distillation hyperparameters can be changed in [config.py](https://github.com/adityadesai97/ModelCompare/blob/main/config.py)
 
 # Installation:
 ```
@@ -28,32 +28,26 @@ git clone https://github.com/adityadesai97/ModelCompare.git
 # Usage:
 ## Configuring:
 ```
-config = {
-    'model1': '',
-    'model2': '',
-    'tasks': {
-        'multilabel': {
-            'do_task': True/False,
-            'ft': True,
-            'epochs': 1,
-            'dataset': 'joelito/sem_eval_2010_task_8',
-            'distillation': True/False
-        },
-        'sentiment': {
-            'do_task': True/False,
-            'ft': True,
-            'epochs': 1,
-            'dataset': 'imdb',
-            'distillation': True/False
-        },
-        'qna': {
-            'do_task': True/False,
-            'ft': True,
-            'epochs': 1,
-            'dataset': 'squad',
-        },
-    }
-}
+An example configuration is in [config.py](https://github.com/adityadesai97/ModelCompare/blob/main/config.py)
+
+All values are required. Leave default values if you do not want to vary them.
+
+Hyperparameters:
+
+1. Common:
+    1. do_task
+    2. ft
+    3. epochs
+    4. dataset
+    5. batch_size
+    6. learning_rate
+    7. max_seq_len
+2. Multilabel Classification / Sentiment Analysis:
+    1. text_column
+    2. label_column
+    3. distillation
+    4. alpha
+    5. temperature
 ```
 ## Running the code:
 ```
