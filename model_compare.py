@@ -2,6 +2,7 @@ import os
 import json
 import time
 import copy
+import shutil
 import warnings
 from collections import defaultdict
 
@@ -69,7 +70,7 @@ class ModelCompare:
 		distil = config['tasks']['sentiment']['distillation']
 		alpha = config['tasks']['sentiment']['alpha']
 		temperature = config['tasks']['sentiment']['temperature']
-		self.classification('sentiment', ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature text_column, label_column)
+		self.classification('sentiment', ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature, text_column, label_column)
 
 
 	def multilabel_classification(self):
@@ -87,7 +88,7 @@ class ModelCompare:
 		distil = config['tasks']['multilabel']['distillation']
 		alpha = config['tasks']['multilabel']['alpha']
 		temperature = config['tasks']['multilabel']['temperature']
-		self.classification('multilabel', ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature text_column, label_column)
+		self.classification('multilabel', ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature, text_column, label_column)
 
 
 	def classification(self, cls_type, ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature, text_column, label_column):
@@ -186,7 +187,7 @@ class ModelCompare:
 		epochs = config['tasks']['qna']['epochs']
 		batch_size = config['tasks']['qna']['batch_size']
 		learning_rate = config['tasks']['qna']['learning_rate']
-		max_seq_length = config['tasks']['qna']['max_seq_length']
+		max_seq_length = config['tasks']['qna']['max_seq_len']
 		if dataset != 'squad':
 			warning.warn('Only SQuAD is currently supported for QnA. Defaulting to SQuAD')
 			dataset = 'squad'
@@ -204,6 +205,8 @@ class ModelCompare:
 						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
 			if do_train:
 				command.append('--do_train')
+			return command
+
 		if ft:
 			command1 = get_command(Model.MODEL_MAP[self.model1.name][0])
 			command2 = get_command(Model.MODEL_MAP[self.model2.name][0])
@@ -213,10 +216,10 @@ class ModelCompare:
 
 		p1 = subprocess.run(command1)
 		try:
-			os.rmdir('qna_output/')
-			os.rmdir('runs/')
+			shutil.rmtree('qna_output/')
+			shutil.rmtree('runs/')
 		except OSError as e:
-			print("Error: %s : %s" % (dir_path, e.strerror))
+			print("Folder deletion error")
 		p2 = subprocess.run(command2)
 		model1_name = Model.MODEL_MAP[self.model1.name][0].split('-')[0]
 		model2_name = Model.MODEL_MAP[self.model2.name][0].split('-')[0]        
