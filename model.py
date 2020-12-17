@@ -15,13 +15,6 @@ class Model:
 	MODEL_INPUTS = {'bert': ['input_ids', 'token_type_ids', 'attention_mask'], 
 					'roberta': ['input_ids', 'attention_mask'], 'xlnet': ['input_ids', 'attention_mask']}
 
-	BATCH_SIZE = 32
-	MAX_SEQ_LEN = 128
-	LEARNING_RATE = 3e-5
-
-	ALPHA = 0.1
-	TEMPERATURE = 2
-
 
 	def __init__(self, name):
 		self.name = name
@@ -98,17 +91,17 @@ class Model:
 		K.clear_session()
 
 
-	def load_model(self, task, num_classes, for_distillation=False):
+	def load_model(self, task, num_classes, max_seq_len, for_distillation=False, temperature=1):
 		if task == 'sentiment':
 			inputs = []
 			for ip in self.MODEL_INPUTS[self.name]:
-				inputs.append(Input((self.MAX_SEQ_LEN,), dtype='int32', name=ip))
+				inputs.append(Input((max_seq_len,), dtype='int32', name=ip))
 			base_model = self.classification_model.from_pretrained(self.type[0], num_labels=num_classes,
 															output_attentions=False,
 															output_hidden_states=False)
 			y = base_model(inputs)[0]
 			if for_distillation:
-				y = Lambda(lambda x: x / self.TEMPERATURE)(y)
+				y = Lambda(lambda x: x / temperature)(y)
 			y = Activation('softmax')(y)
 
 			model = tf.keras.Model(inputs, y)
@@ -116,13 +109,13 @@ class Model:
 		elif task == 'multilabel':
 			inputs = []
 			for ip in self.MODEL_INPUTS[self.name]:
-				inputs.append(Input((self.MAX_SEQ_LEN,), dtype='int32', name=ip))
+				inputs.append(Input((max_seq_len,), dtype='int32', name=ip))
 			base_model = self.classification_model.from_pretrained(self.type[0], num_labels=num_classes,
 															output_attentions=False,
 															output_hidden_states=False)
 			y = base_model(inputs)[0]
 			if for_distillation:
-				y = Lambda(lambda x: x / self.TEMPERATURE)(y)
+				y = Lambda(lambda x: x / temperature)(y)
 			y = Activation('sigmoid')(y)
 
 			model = tf.keras.Model(inputs, y)

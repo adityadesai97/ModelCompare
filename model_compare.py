@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import copy
 import warnings
 from collections import defaultdict
 
@@ -42,47 +43,61 @@ class ModelCompare:
 	def sentiment(self):
 		ft = config['tasks']['sentiment']['ft']
 		dataset = config['tasks']['sentiment']['dataset']
+		text_column = config['tasks']['sentiment']['text_column']
+		label_column = config['tasks']['sentiment']['label_column']
 		epochs = config['tasks']['sentiment']['epochs']
+		learning_rate = config['tasks']['sentiment']['learning_rate']
+		batch_size = config['tasks']['sentiment']['batch_size']
+		max_seq_len = config['tasks']['sentiment']['max_seq_len']
 		distil = config['tasks']['sentiment']['distillation']
-		self.classification('sentiment', ft, dataset, epochs, distil, 'text', 'label')
+		alpha = config['tasks']['sentiment']['alpha']
+		temperature = config['tasks']['sentiment']['temperature']
+		self.classification('sentiment', ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature text_column, label_column)
 
 
 	def multilabel_classification(self):
 		ft = config['tasks']['multilabel']['ft']
 		dataset = config['tasks']['multilabel']['dataset']
+		text_column = config['tasks']['multilabel']['text_column']
+		label_column = config['tasks']['multilabel']['label_column']
 		epochs = config['tasks']['multilabel']['epochs']
+		learning_rate = config['tasks']['multilabel']['learning_rate']
+		batch_size = config['tasks']['multilabel']['batch_size']
+		max_seq_len = config['tasks']['multilabel']['max_seq_len']
 		distil = config['tasks']['multilabel']['distillation']
-		self.classification('multilabel', ft, dataset, epochs, distil, 'sentence', 'relation')
+		alpha = config['tasks']['multilabel']['alpha']
+		temperature = config['tasks']['multilabel']['temperature']
+		self.classification('multilabel', ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature text_column, label_column)
 
 
-	def classification(self, cls_type, ft, dataset, epochs, distil, text_column='text', label_column='label'):
+	def classification(self, cls_type, ft, dataset, epochs, batch_size, learning_rate, max_seq_len, distil, alpha, temperature, text_column, label_column):
 		if ft:
 			train_dataset = Dataset(dataset, split=Dataset.TRAIN_STR)
 		val_dataset = Dataset(dataset, split=Dataset.VALIDATION_STR)
 
 		for i in (self.model1, self.model2):
-			opt = tf.keras.optimizers.Adam(learning_rate=Model.LEARNING_RATE, epsilon=1e-08, clipnorm=1.0)
+			opt = tf.keras.optimizers.Adam(learning_rate=learning_rate, epsilon=1e-08, clipnorm=1.0)
 			loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
 			metrics = ['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()]
 
-			model = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column))
+			model = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column), max_seq_len)
 			model.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
 
 			if ft:
-				tf_train_data = train_dataset.classification_tokenize(i.tokenizer, Model.BATCH_SIZE, 
+				tf_train_data = train_dataset.classification_tokenize(i.tokenizer, batch_size, max_seq_len,
 																		i.name, text_column=text_column, label_column=label_column)
 				model.fit(tf_train_data, epochs=epochs)
 
 				if distil:
-					model_teacher = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column), for_distillation=True)
+					model_teacher = i.load_model(cls_type, train_dataset.get_num_classes(label_column=label_column), max_seq_len, for_distillation=True, temperature=temperature)
 					model_teacher.compile(optimizer=opt, loss=loss_fn, metrics=metrics)
 					model_teacher.fit(tf_train_data, epochs=epochs)
 					model_soft_labels = model_teacher.predict(tf_train_data)
-					student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
-					model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column), temperature=Model.TEMPERATURE)
+					student_dataset, encoder = train_dataset.student_dataset_encoder(model_soft_labels, batch_size, text_column=text_column, label_column=label_column)
+					model_student = Model.student_model(cls_type, encoder, train_dataset.get_num_classes(label_column=label_column), temperature=temperature)
 
 					student_loss_fn = {'soft': Model.get_distillation_loss_fn(), 'hard': Model.get_distillation_loss_fn()}
-					loss_wts = {'soft': 1 - Model.ALPHA, 'hard': Model.ALPHA}
+					loss_wts = {'soft': 1 - alpha, 'hard': alpha}
 					model_student.compile(optimizer=opt, loss=student_loss_fn, loss_weights=loss_wts, metrics=metrics)
 
 					model_student.fit(student_dataset, epochs=epochs)
@@ -92,7 +107,7 @@ class ModelCompare:
 
 				del tf_train_data
 
-			tf_val_data = val_dataset.classification_tokenize(i.tokenizer, Model.BATCH_SIZE, 
+			tf_val_data = val_dataset.classification_tokenize(i.tokenizer, batch_size, max_seq_len,
 																i.name, text_column=text_column, label_column=label_column)
 			start = time.time()
 			model_eval = {k:v for k, v in zip(model.metrics_names, model.evaluate(tf_val_data, verbose=0))}
@@ -108,7 +123,7 @@ class ModelCompare:
 
 			if distil:
 				model_soft_labels = model.predict(tf_val_data)
-				val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, text_column=text_column, label_column=label_column)
+				val_student_dataset, encoder = val_dataset.student_dataset_encoder(model_soft_labels, batch_size, text_column=text_column, label_column=label_column)
 				start = time.time()
 				model_eval = {k.split('_')[-1]:v for k, v in zip(model_student.metrics_names, model_student.evaluate(val_student_dataset, verbose=0)) if 'soft' not in k}
 				time_taken = time.time() - start
@@ -128,70 +143,36 @@ class ModelCompare:
 
 
 	def qna(self):
-#         config_qa = {"--model_name_or_path": Model.MODEL_MAP[self.model1.name], \
-#                      "--dataset_name": dataset, \
-#                      "--do_train": ft, \
-#                      "--do_eval": True, \
-#                      "--per_device_train_batch_size": Model.BATCH_SIZE, \
-#                      "--learning_rate": Model.LEARNING_RATE, \
-#                      "--num_train_epochs": epochs, \
-#                      "--max_seq_length": Model.MAX_SEQ_LEN, \
-#                      "--doc_stride": 128, \
-#                      "--output_dir": "/tmp/debug_squa" \
-#                     }
-            
-# 		with open('config_qa.json', 'w', encoding='utf-8') as f:
-# 			json.dump(config_qa, f, ensure_ascii=False, indent=4)
 		ft = config['tasks']['qna']['ft']
 		dataset = config['tasks']['qna']['dataset']
 		epochs = config['tasks']['qna']['epochs']
+		batch_size = config['tasks']['qna']['batch_size']
+		learning_rate = config['tasks']['qna']['learning_rate']
+		max_seq_length = config['tasks']['qna']['max_seq_length']
 		if dataset != 'squad':
 			warning.warn('Only SQuAD is currently supported for QnA. Defaulting to SQuAD')
 			dataset = 'squad'
+
+		def get_command(model, do_train=True):
+			command = ['python', 'qa_utils/run_qa.py', \
+						'--model_name_or_path', model, \
+						'--dataset_name', dataset, \
+						'--do_eval', \
+						'--per_device_train_batch_size', str(batch_size), \
+						'--learning_rate', str(learning_rate), \
+						'--num_train_epochs', str(epochs), \
+						'--max_seq_length', str(max_seq_length), \
+						'--doc_stride', '32', \
+						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
+			if do_train:
+				command.append('--do_train')
 		if ft:
-			command1 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model1.name][0], \
-						'--dataset_name', dataset, \
-						'--do_train', \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
-			command2 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model2.name][0], \
-						'--dataset_name', dataset, \
-						'--do_train', \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']
+			command1 = get_command(Model.MODEL_MAP[self.model1.name][0])
+			command2 = get_command(Model.MODEL_MAP[self.model2.name][0])
 		else:
-			command1 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model1.name][0], \
-						'--dataset_name', dataset, \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']  
-			command2 = ['python', 'run_qa.py', \
-						'--model_name_or_path', Model.MODEL_MAP[self.model2.name][0], \
-						'--dataset_name', dataset, \
-						'--do_eval', \
-						'--per_device_train_batch_size', str(Model.BATCH_SIZE), \
-						'--learning_rate', str(Model.LEARNING_RATE), \
-						'--num_train_epochs', str(epochs), \
-						'--max_seq_length', str(Model.MAX_SEQ_LEN), \
-						'--doc_stride', '32', \
-						'--output_dir', '/home/jupyter/ModelCompare/qna_output']            
+			command1 = get_command(Model.MODEL_MAP[self.model1.name][0], False)
+			command2 = get_command(Model.MODEL_MAP[self.model2.name][0], False)
+
 		p1 = subprocess.run(command1)
 		try:
 			os.rmdir('qna_output/')
